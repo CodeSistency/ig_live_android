@@ -11,9 +11,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.camera.core.CameraSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -48,14 +55,18 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -78,6 +89,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.plcoding.daggerhiltcourse.ui.theme.DaggerHiltCourseTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 @AndroidEntryPoint
@@ -141,6 +154,8 @@ class MainActivity : ComponentActivity() {
         var comment by remember {
             mutableStateOf("")
         }
+        var items by remember { mutableStateOf(List(10) { "comment$it" }) }
+
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -169,6 +184,14 @@ class MainActivity : ComponentActivity() {
             }
         )
 
+//        var seguidores = viewModel.quantity?.let { viewModel.simulateFluctuation(it, 5) }
+        LaunchedEffect(viewModel) {
+            while (true) {
+                delay(1500L)
+                viewModel.updateViewerCount()
+            }
+        }
+
 
         LaunchedEffect(key1 = true) {
             if (!hasCamPermission) {
@@ -176,20 +199,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-//        val keyboardController = LocalSoftwareKeyboardController.current
-//
-//        // Use onKeyEvent to listen for key events
-//        val onKeyEvent: (KeyEvent) -> Boolean = { keyEvent ->
-//            if (keyEvent.keyCode == AudioMetadata.Key.VolumeUp ) {
-//                // Handle volume button press
-//                true // Consume the event
-//            }  else if (keyEvent.keyCode == Key.VolumeDown) {
-//            // Handle volume button press
-//            true // Consume the event
-//            } else {
-//            false // Continue handling other events
-//            }
-//        }
+        LaunchedEffect(items) {
+            while (true) {
+                delay(1000) // Delay for one second
+                items = items.drop(1) + items.take(1)
+            }
+        }
 
             AndroidView(
                 { context ->
@@ -315,24 +330,38 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.weight(1f))
             Column {
                 Box {
+//                    LazyColumn(
+//                        modifier = Modifier
+//                            .fillMaxWidth(0.5f)
+//                            .height(250.dp)
+//
+//
+//                    ){
+//                        items(10){ index ->
+//                            Row(
+//                                verticalAlignment = Alignment.CenterVertically
+//                            ) {
+//                                Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null,
+//                                    modifier = Modifier.size(50.dp))
+//                                Column {
+//                                    Text(text = "user${index}")
+//                                    Text(text = "comentario")
+//
+//                                }
+//                            }
+//                        }
+//                    }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth(0.5f)
                             .height(250.dp)
 
-                    ){
-                        items(10){ index ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null,
-                                    modifier = Modifier.size(50.dp))
-                                Column {
-                                    Text(text = "user${index}")
-                                    Text(text = "comentario")
 
-                                }
-                            }
+                    ){
+                        items(items.size){ index ->
+                            AnimatedItem(index = index, item = items[index], onDismiss = {
+                                items = items.drop(1) + items.take(1)
+                            })
                         }
                     }
                 }
@@ -377,6 +406,61 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    @Composable
+    fun AnimatedItem(index: Int, item: String, onDismiss: () -> Unit) {
+        var dismissed by remember { mutableStateOf(false) }
+        val scrollPosition = remember { Animatable(initialValue = 0f) }
+
+        if (!dismissed) {
+            LaunchedEffect(index) {
+                delay(index * 1000L) // Delay based on the index
+
+                // Animate the item going up and disappearing
+                launch {
+                    scrollPosition.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 500, easing = LinearEasing)
+                    )
+                    onDismiss()
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxWidth()
+                    .offset(y = (-scrollPosition.value * 50).dp)
+                    .alpha(1 - scrollPosition.value)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(MaterialTheme.shapes.small)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "user$index",
+                            color = Color.Black
+                        )
+                        Text(text = item)
+                    }
+                }
+            }
+        }
+    }
+
+
+    fun generateDummyData(): List<String> {
+        return List(10) { "comment$it" }
+    }
+
     @Composable
     fun GradientOverlay() {
         val gradientHeight = 40.dp
@@ -394,14 +478,16 @@ class MainActivity : ComponentActivity() {
                 )
         )
     }
-//
-//    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-//
-//        when (keyCode) {
-//            KeyEvent.KEYCODE_VOLUME_DOWN -> Toast.makeText(applicationContext, "Volume Down Key Pressed", Toast.LENGTH_SHORT).show()
-//            KeyEvent.KEYCODE_VOLUME_UP -> Toast.makeText(applicationContext, "Volume Up Key Pressed", Toast.LENGTH_SHORT).show()
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+
+       val viewModel by viewModels<MyViewModel>()
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> viewModel.quantity = viewModel.quantity?.minus(1)
+            KeyEvent.KEYCODE_VOLUME_UP -> viewModel.quantity = viewModel.quantity?.plus(1)
 //            KeyEvent.KEYCODE_BACK -> Toast.makeText(applicationContext, "Back Key Pressed", Toast.LENGTH_SHORT).show()
-//        }
-//        return true
-//    }
+        }
+        return true
+    }
 }
