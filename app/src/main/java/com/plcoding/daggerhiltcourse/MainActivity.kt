@@ -2,7 +2,6 @@ package com.plcoding.daggerhiltcourse
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.AudioMetadata
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -12,23 +11,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricPrompt
 import androidx.camera.core.CameraSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,9 +36,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.Button
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
@@ -47,41 +45,33 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
-import androidx.compose.material.TextFieldColors
 import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.LinearGradient
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.KeyEventDispatcher.Component
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -91,10 +81,13 @@ import com.plcoding.daggerhiltcourse.ui.theme.DaggerHiltCourseTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -103,12 +96,14 @@ class MainActivity : ComponentActivity() {
                 Router()
             }
         }
+
     }
 
 
-    @Preview
+
+
     @Composable
-    fun Router(){
+    fun Router() {
         val navController = rememberNavController()
         val viewModel = hiltViewModel<MyViewModel>()
         NavHost(navController = navController, startDestination = "home") {
@@ -118,12 +113,53 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
     @Composable
-    fun Home(navController: NavHostController, viewModel: MyViewModel) {
+    fun Home(
+        navController: NavHostController,
+        viewModel: MyViewModel,
+
+    ) {
 
         var name by remember {
             mutableStateOf("")
         }
+//
+        val context = LocalContext.current
+        val activity = LocalContext.current as FragmentActivity
+        val executor = ContextCompat.getMainExecutor(activity)
+
+        var promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("title")
+            .setSubtitle("subtitle")
+            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+            .build()
+
+        val biometricPrompt = BiometricPrompt(activity, executor,
+            object: BiometricPrompt.AuthenticationCallback(){
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    Toast.makeText(
+                        context,
+                        "error",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    Toast.makeText(context, "succeeded!", Toast.LENGTH_LONG).show()
+                    navController.navigate("live")
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    Toast.makeText(
+                        context, "failed", Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        )
 
 
         Column {
@@ -136,7 +172,7 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.height(10.dp))
             Button(onClick = {
                 if (name.isNullOrBlank()){
-                    Toast.makeText(applicationContext, "Ingrese un nombre", Toast.LENGTH_SHORT)
+                    Toast.makeText(context, "Ingrese un nombre", Toast.LENGTH_SHORT)
                 }else{
                     viewModel.nombre = name
                     navController.navigate("live")
@@ -144,6 +180,16 @@ class MainActivity : ComponentActivity() {
             }) {
                 Text(text = "Continuar")
             }
+
+
+
+                Button(onClick = {
+
+                    biometricPrompt.authenticate(promptInfo)
+                }) {
+                    Text(text = "Autenticación Biometrica")
+                }
+
 
         }
     }
@@ -154,6 +200,17 @@ class MainActivity : ComponentActivity() {
         var comment by remember {
             mutableStateOf("")
         }
+        val scrollState = rememberLazyListState()
+        val coroutineScope = rememberCoroutineScope()
+
+//        LaunchedEffect(scrollState) {
+//            while (true) {
+//                coroutineScope.launch {
+//                    delay(1000)
+//                    scrollState.animateScrollToItem(scrollState.firstVisibleItemIndex + 1)
+//                }
+//            }
+//        }
         var items by remember { mutableStateOf(List(10) { "comment$it" }) }
 
         val context = LocalContext.current
@@ -199,12 +256,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(items) {
-            while (true) {
-                delay(1000) // Delay for one second
-                items = items.drop(1) + items.take(1)
-            }
-        }
+//        LaunchedEffect(scrollState) {
+//            while (true) {
+//                coroutineScope.launch {
+//                    delay(1000)
+//                    scrollState.animateScrollToItem(scrollState.firstVisibleItemIndex + 1)
+//                }
+//            }
+//        }
+//        LaunchedEffect(items) {
+//            while (true) {
+//                delay(1000) // Delay for one second
+//                items = items.drop(1) + items.take(1)
+//            }
+//        }
 
             AndroidView(
                 { context ->
@@ -330,40 +395,29 @@ class MainActivity : ComponentActivity() {
             Spacer(modifier = Modifier.weight(1f))
             Column {
                 Box {
-//                    LazyColumn(
-//                        modifier = Modifier
-//                            .fillMaxWidth(0.5f)
-//                            .height(250.dp)
-//
-//
-//                    ){
-//                        items(10){ index ->
-//                            Row(
-//                                verticalAlignment = Alignment.CenterVertically
-//                            ) {
-//                                Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null,
-//                                    modifier = Modifier.size(50.dp))
-//                                Column {
-//                                    Text(text = "user${index}")
-//                                    Text(text = "comentario")
-//
-//                                }
-//                            }
-//                        }
-//                    }
                     LazyColumn(
+//                        state = scrollState,
                         modifier = Modifier
                             .fillMaxWidth(0.5f)
                             .height(250.dp)
 
 
                     ){
-                        items(items.size){ index ->
-                            AnimatedItem(index = index, item = items[index], onDismiss = {
-                                items = items.drop(1) + items.take(1)
-                            })
+                        items(30){ index ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null,
+                                    modifier = Modifier.size(50.dp))
+                                Column {
+                                    Text(text = "user${index}")
+                                    Text(text = "comentario")
+
+                                }
+                            }
                         }
                     }
+
                 }
 
                 Row(
@@ -405,6 +459,38 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+//    @RequiresApi(Build.VERSION_CODES.P)
+//    fun authenticateWithBiometric(context: FragmentActivity) {
+//        val executor = context.mainExecutor
+//        val biometricPrompt = BiometricPrompt(
+//            context,
+//            executor,
+//            object : BiometricPrompt.AuthenticationCallback() {
+//                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+//                    //TODO handle authentication success, proceed to HomeScreen
+//                    Log.d("TAG", "Authentication successful!!!")
+//                }
+//
+//                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+//                    Log.e("TAG", "onAuthenticationError")
+//                    //TODO Handle authentication errors.
+//                }
+//
+//                override fun onAuthenticationFailed() {
+//                    Log.e("TAG", "onAuthenticationFailed")
+//                    //TODO Handle authentication failures.
+//                }
+//            })
+//
+//        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+//            .setTitle("Biometric Authentication")
+//            .setDescription("Place your finger the sensor or look at the front camera to authenticate.")
+//            .setNegativeButtonText("Cancel")
+//            .setAllowedAuthenticators(BIOMETRIC_STRONG)
+//            .build()
+//
+//        biometricPrompt.authenticate(promptInfo)
+//    }
 
 
     @Composable
